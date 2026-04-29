@@ -1,9 +1,11 @@
 from rest_framework import serializers
 
-from .models import Task
+from apps.core.serializers import SanitizedInputMixin
+
+from .models import Task, TaskStatus
 
 
-class TaskSerializer(serializers.ModelSerializer):
+class TaskSerializer(SanitizedInputMixin, serializers.ModelSerializer):
     assigned_to_name = serializers.CharField(source='assigned_to.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.name', read_only=True)
     project_name = serializers.CharField(source='project.name', read_only=True)
@@ -35,3 +37,23 @@ class TaskSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+
+    def validate_status(self, value):
+        if self.instance is None and value != TaskStatus.TODO:
+            raise serializers.ValidationError('La tarea debe iniciar en estado pendiente.')
+
+        if self.instance is None or value == self.instance.status:
+            return value
+
+        allowed_transitions = {
+            TaskStatus.TODO: TaskStatus.IN_PROGRESS,
+            TaskStatus.IN_PROGRESS: TaskStatus.IN_REVIEW,
+            TaskStatus.IN_REVIEW: TaskStatus.DONE,
+        }
+
+        if allowed_transitions.get(self.instance.status) != value:
+            raise serializers.ValidationError(
+                'El flujo permitido es: todo -> in_progress -> in_review -> done.'
+            )
+
+        return value

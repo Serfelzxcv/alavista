@@ -1,11 +1,12 @@
 from django.contrib.auth.password_validation import validate_password
+from apps.core.serializers import SanitizedInputMixin
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import User, UserRole
 
 
-class UserSerializer(serializers.ModelSerializer):
+class UserSerializer(SanitizedInputMixin, serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
@@ -21,7 +22,7 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
-class RegisterSerializer(serializers.ModelSerializer):
+class RegisterSerializer(SanitizedInputMixin, serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     role = serializers.ChoiceField(choices=UserRole.choices, default=UserRole.DEVELOPER)
 
@@ -48,7 +49,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         return User.objects.create_user(password=password, **validated_data)
 
 
-class UserUpdateSerializer(serializers.ModelSerializer):
+class UserUpdateSerializer(SanitizedInputMixin, serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['name', 'email', 'role', 'avatar_url', 'is_active']
@@ -66,7 +67,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         return email
 
 
-class ProfileSerializer(serializers.ModelSerializer):
+class ProfileSerializer(SanitizedInputMixin, serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'name', 'email', 'role', 'avatar_url', 'created_at', 'updated_at']

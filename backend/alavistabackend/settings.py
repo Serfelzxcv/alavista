@@ -62,6 +62,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.core.middleware.GlobalExceptionMiddleware',
 ]
 
 ROOT_URLCONF = 'alavistabackend.urls'
@@ -98,7 +99,14 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'DEFAULT_PAGINATION_CLASS': 'apps.core.pagination.StandardPageNumberPagination',
+    'DEFAULT_RENDERER_CLASSES': [
+        'apps.core.renderers.StandardJSONRenderer',
+    ],
+    'EXCEPTION_HANDLER': 'apps.core.exceptions.standard_exception_handler',
+    'DEFAULT_THROTTLE_RATES': {
+        'auth': os.environ.get('AUTH_THROTTLE_RATE', '5/min'),
+    },
     'PAGE_SIZE': 10,
 }
 

@@ -1,9 +1,11 @@
 from rest_framework import serializers
 
+from apps.core.serializers import SanitizedInputMixin
+
 from .models import Comment
 
 
-class CommentSerializer(serializers.ModelSerializer):
+class CommentSerializer(SanitizedInputMixin, serializers.ModelSerializer):
     user_name = serializers.CharField(source='user.name', read_only=True)
     task_title = serializers.CharField(source='task.title', read_only=True)
 

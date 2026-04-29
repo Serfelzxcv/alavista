@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.core.serializers import SanitizedInputMixin
+
 from .models import Project
 
 
@@ -12,7 +14,7 @@ class ProjectTaskSerializer(serializers.Serializer):
     due_date = serializers.DateField(allow_null=True)
 
 
-class ProjectSerializer(serializers.ModelSerializer):
+class ProjectSerializer(SanitizedInputMixin, serializers.ModelSerializer):
     owner_name = serializers.CharField(source='owner.name', read_only=True)
     tasks = ProjectTaskSerializer(many=True, read_only=True)
 

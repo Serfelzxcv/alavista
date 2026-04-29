@@ -46,7 +46,27 @@ type Task = {
   project_name: string
   assigned_to: number
   assigned_to_name: string
+  created_at: string
   due_date: string | null
+  updated_at: string
+}
+
+type TaskFormState = {
+  assigned_to: string
+  description: string
+  due_date: string
+  priority: TaskPriority
+  project: string
+  status: TaskStatus
+  title: string
+}
+
+type TaskFilters = {
+  assigned_to: string
+  ordering: string
+  priority: string
+  project: string
+  status: string
 }
 
 type AuthPayload = {
@@ -57,6 +77,14 @@ type AuthPayload = {
 
 type Paginated<T> = {
   results: T[]
+}
+
+type ApiEnvelope<T> = {
+  data: T
+  errors?: unknown
+  message?: string
+  meta?: unknown
+  success: boolean
 }
 
 const API_BASE_URL =
@@ -106,12 +134,29 @@ function getStoredUser() {
 }
 
 function isAuthPayload(payload: unknown): payload is AuthPayload {
+  if (payload && typeof payload === 'object' && 'success' in payload && 'data' in payload) {
+    return isAuthPayload((payload as ApiEnvelope<unknown>).data)
+  }
+
   if (!payload || typeof payload !== 'object') return false
   const data = payload as Record<string, unknown>
   return typeof data.access === 'string' && typeof data.refresh === 'string' && !!data.user
 }
 
+function unwrapData<T>(payload: unknown): T {
+  if (payload && typeof payload === 'object' && 'success' in payload && 'data' in payload) {
+    return (payload as ApiEnvelope<T>).data
+  }
+
+  return payload as T
+}
+
 function unwrapList<T>(payload: unknown): T[] {
+  if (payload && typeof payload === 'object' && 'success' in payload && 'data' in payload) {
+    const data = (payload as ApiEnvelope<unknown>).data
+    return Array.isArray(data) ? (data as T[]) : []
+  }
+
   if (Array.isArray(payload)) return payload as T[]
   if (payload && typeof payload === 'object' && Array.isArray((payload as Paginated<T>).results)) {
     return (payload as Paginated<T>).results
@@ -125,6 +170,7 @@ function App() {
   const [password, setPassword] = useState('Admin123!')
   const [authLoading, setAuthLoading] = useState(false)
   const [authError, setAuthError] = useState('')
+  const [dialogError, setDialogError] = useState('')
 
   const [users, setUsers] = useState<User[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -145,6 +191,23 @@ function App() {
     priority: 'medium' as TaskPriority,
     project: '',
     status: 'todo' as TaskStatus,
+    title: '',
+  })
+  const [taskFilters, setTaskFilters] = useState<TaskFilters>({
+    assigned_to: '',
+    ordering: 'due_date',
+    priority: '',
+    project: '',
+    status: '',
+  })
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null)
+  const [editTaskForm, setEditTaskForm] = useState<TaskFormState>({
+    assigned_to: '',
+    description: '',
+    due_date: '',
+    priority: 'medium',
+    project: '',
+    status: 'todo',
     title: '',
   })
   const [userForm, setUserForm] = useState({
@@ -224,6 +287,12 @@ function App() {
     return errorSource instanceof Error ? errorSource.message : 'Error inesperado'
   }
 
+  function reportError(errorSource: unknown) {
+    const message = getNetworkError(errorSource)
+    setDialogError(message)
+    return message
+  }
+
   async function apiRequest(path: string, options: RequestInit = {}) {
     const token = localStorage.getItem('taskflow_access')
     const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -243,6 +312,17 @@ function App() {
     return payload
   }
 
+  function getTaskQueryString() {
+    const params = new URLSearchParams()
+
+    Object.entries(taskFilters).forEach(([key, value]) => {
+      if (value) params.set(key, value)
+    })
+
+    const query = params.toString()
+    return query ? `?${query}` : ''
+  }
+
   async function loadWorkspace() {
     if (!user) return
 
@@ -252,7 +332,7 @@ function App() {
     try {
       const [projectsPayload, tasksPayload] = await Promise.all([
         apiRequest('/projects/'),
-        apiRequest('/tasks/'),
+        apiRequest(`/tasks/${getTaskQueryString()}`),
       ])
 
       setProjects(unwrapList<Project>(projectsPayload))
@@ -265,7 +345,7 @@ function App() {
         setUsers([user])
       }
     } catch (loadError) {
-      setDataError(getNetworkError(loadError))
+      setDataError(reportError(loadError))
     } finally {
       setDataLoading(false)
     }
@@ -273,7 +353,7 @@ function App() {
 
   useEffect(() => {
     loadWorkspace()
-  }, [user])
+  }, [user, taskFilters])
 
   useEffect(() => {
     if (user) {
@@ -301,9 +381,9 @@ function App() {
       if (!response.ok) throw new Error(getApiError(payload, 'No se pudo iniciar sesión'))
       if (!isAuthPayload(payload)) throw new Error('La API no devolvió una sesión válida')
 
-      saveSession(payload)
+      saveSession(unwrapData<AuthPayload>(payload))
     } catch (loginError) {
-      setAuthError(getNetworkError(loginError))
+      setAuthError(reportError(loginError))
     } finally {
       setAuthLoading(false)
     }
@@ -347,7 +427,7 @@ function App() {
       setFormMessage('Usuario creado correctamente')
       await loadWorkspace()
     } catch (createError) {
-      setFormMessage(getNetworkError(createError))
+      setFormMessage(reportError(createError))
     }
   }
 
@@ -369,7 +449,7 @@ function App() {
 
       setFormMessage('Perfil actualizado correctamente')
     } catch (updateError) {
-      setFormMessage(getNetworkError(updateError))
+      setFormMessage(reportError(updateError))
     }
   }
 
@@ -388,7 +468,7 @@ function App() {
       setFormMessage('Usuario actualizado correctamente')
       await loadWorkspace()
     } catch (updateError) {
-      setFormMessage(getNetworkError(updateError))
+      setFormMessage(reportError(updateError))
     }
   }
 
@@ -400,7 +480,7 @@ function App() {
       setFormMessage('Usuario desactivado correctamente')
       await loadWorkspace()
     } catch (deleteError) {
-      setFormMessage(getNetworkError(deleteError))
+      setFormMessage(reportError(deleteError))
     }
   }
 
@@ -428,7 +508,7 @@ function App() {
       setFormMessage('Proyecto creado correctamente')
       await loadWorkspace()
     } catch (createError) {
-      setFormMessage(getNetworkError(createError))
+      setFormMessage(reportError(createError))
     }
   }
 
@@ -437,9 +517,9 @@ function App() {
 
     try {
       const payload = await apiRequest(`/projects/${projectId}/`)
-      setSelectedProject(payload as Project)
+      setSelectedProject(unwrapData<Project>(payload))
     } catch (detailError) {
-      setFormMessage(getNetworkError(detailError))
+      setFormMessage(reportError(detailError))
     }
   }
 
@@ -469,7 +549,7 @@ function App() {
       await loadWorkspace()
       await handleSelectProject(editingProjectId)
     } catch (updateError) {
-      setFormMessage(getNetworkError(updateError))
+      setFormMessage(reportError(updateError))
     }
   }
 
@@ -482,7 +562,7 @@ function App() {
       setFormMessage('Proyecto archivado correctamente')
       await loadWorkspace()
     } catch (archiveError) {
-      setFormMessage(getNetworkError(archiveError))
+      setFormMessage(reportError(archiveError))
     }
   }
 
@@ -512,7 +592,81 @@ function App() {
       setFormMessage('Tarea creada correctamente')
       await loadWorkspace()
     } catch (createError) {
-      setFormMessage(getNetworkError(createError))
+      setFormMessage(reportError(createError))
+    }
+  }
+
+  function startEditingTask(task: Task) {
+    setEditingTaskId(task.id)
+    setEditTaskForm({
+      assigned_to: String(task.assigned_to),
+      description: task.description,
+      due_date: task.due_date ?? '',
+      priority: task.priority,
+      project: String(task.project),
+      status: task.status,
+      title: task.title,
+    })
+    setFormMessage('')
+  }
+
+  async function handleUpdateTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!editingTaskId) return
+
+    setFormMessage('')
+
+    try {
+      await apiRequest(`/tasks/${editingTaskId}/`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...editTaskForm,
+          assigned_to: Number(editTaskForm.assigned_to),
+          due_date: editTaskForm.due_date || null,
+          project: Number(editTaskForm.project),
+        }),
+      })
+      setEditingTaskId(null)
+      setFormMessage('Tarea actualizada correctamente')
+      await loadWorkspace()
+    } catch (updateError) {
+      setFormMessage(reportError(updateError))
+    }
+  }
+
+  async function handleDeleteTask(taskId: number) {
+    setFormMessage('')
+
+    try {
+      await apiRequest(`/tasks/${taskId}/`, { method: 'DELETE' })
+      setFormMessage('Tarea eliminada correctamente')
+      await loadWorkspace()
+    } catch (deleteError) {
+      setFormMessage(reportError(deleteError))
+    }
+  }
+
+  async function handleAdvanceTask(task: Task) {
+    const nextStatus: Partial<Record<TaskStatus, TaskStatus>> = {
+      todo: 'in_progress',
+      in_progress: 'in_review',
+      in_review: 'done',
+    }
+
+    const status = nextStatus[task.status]
+    if (!status) return
+
+    setFormMessage('')
+
+    try {
+      await apiRequest(`/tasks/${task.id}/`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      })
+      setFormMessage('Estado actualizado correctamente')
+      await loadWorkspace()
+    } catch (statusError) {
+      setFormMessage(reportError(statusError))
     }
   }
 
@@ -532,11 +686,22 @@ function App() {
 
   const activeProjects = projects.filter((project) => project.status === 'active')
   const assignableUsers = user?.role === 'developer' ? users.filter((member) => member.id === user.id) : users
-  const upcomingTasks = tasks.filter((task) => task.due_date).slice(0, 4)
+  const upcomingTasks = tasks
+    .filter((task) => task.due_date)
+    .sort((first, second) => new Date(first.due_date ?? '').getTime() - new Date(second.due_date ?? '').getTime())
+    .slice(0, 4)
+  const recentTasks = [...tasks]
+    .sort((first, second) => {
+      const firstDate = new Date(first.updated_at || first.created_at).getTime()
+      const secondDate = new Date(second.updated_at || second.created_at).getTime()
+      return secondDate - firstDate
+    })
+    .slice(0, 5)
 
   if (!user) {
     return (
       <main className="auth-page">
+        <ErrorDialog message={dialogError} onClose={() => setDialogError('')} />
         <section className="auth-panel">
           <div className="brand auth-brand">
             <span className="brand-mark">T</span>
@@ -583,6 +748,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <ErrorDialog message={dialogError} onClose={() => setDialogError('')} />
       <aside className="sidebar" aria-label="Navegación principal">
         <div className="brand">
           <span className="brand-mark">T</span>
@@ -642,6 +808,7 @@ function App() {
               <aside className="side-panel">
                 <ProjectSummary projects={activeProjects} />
                 <UpcomingTasks tasks={upcomingTasks} />
+                <RecentActivity tasks={recentTasks} />
               </aside>
             </section>
           </>
@@ -686,7 +853,22 @@ function App() {
               setTaskForm={setTaskForm}
               taskForm={taskForm}
             />
-            <TaskPanel tasks={tasks} />
+            <TaskPanel
+              assignableUsers={assignableUsers}
+              editTaskForm={editTaskForm}
+              editingTaskId={editingTaskId}
+              filters={taskFilters}
+              onAdvanceTask={handleAdvanceTask}
+              onCancelEdit={() => setEditingTaskId(null)}
+              onDeleteTask={handleDeleteTask}
+              onStartEdit={startEditingTask}
+              onSubmitEdit={handleUpdateTask}
+              projects={projects}
+              setEditTaskForm={setEditTaskForm}
+              setFilters={setTaskFilters}
+              tasks={tasks}
+              user={user}
+            />
           </section>
         )}
 
@@ -753,6 +935,23 @@ function getSectionTitle(section: Section) {
   return titles[section]
 }
 
+function ErrorDialog({ message, onClose }: { message: string; onClose: () => void }) {
+  if (!message) return null
+
+  return (
+    <div className="dialog-backdrop" role="presentation">
+      <section className="error-dialog" role="alertdialog" aria-modal="true" aria-labelledby="error-dialog-title">
+        <div>
+          <span className="eyebrow">Error</span>
+          <h2 id="error-dialog-title">No se pudo completar la acción</h2>
+        </div>
+        <p>{message}</p>
+        <button className="primary-button" type="button" onClick={onClose}>Entendido</button>
+      </section>
+    </div>
+  )
+}
+
 function ProjectForm({
   formMessage,
   onSubmit,
@@ -803,24 +1002,8 @@ function TaskForm({
   formMessage: string
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   projects: Project[]
-  setTaskForm: (form: {
-    assigned_to: string
-    description: string
-    due_date: string
-    priority: TaskPriority
-    project: string
-    status: TaskStatus
-    title: string
-  }) => void
-  taskForm: {
-    assigned_to: string
-    description: string
-    due_date: string
-    priority: TaskPriority
-    project: string
-    status: TaskStatus
-    title: string
-  }
+  setTaskForm: (form: TaskFormState) => void
+  taskForm: TaskFormState
 }) {
   return (
     <form className="management-form" onSubmit={onSubmit}>
@@ -853,7 +1036,7 @@ function TaskForm({
       <div className="form-row">
         <label>
           Estado
-          <select value={taskForm.status} onChange={(event) => setTaskForm({ ...taskForm, status: event.target.value as TaskStatus })}>
+          <select value={taskForm.status} disabled onChange={(event) => setTaskForm({ ...taskForm, status: event.target.value as TaskStatus })}>
             <option value="todo">Pendiente</option>
             <option value="in_progress">En progreso</option>
             <option value="in_review">En revisión</option>
@@ -1154,7 +1337,49 @@ function TeamList({
   )
 }
 
-function TaskPanel({ tasks }: { tasks: Task[] }) {
+function getNextTaskLabel(status: TaskStatus) {
+  const labels: Partial<Record<TaskStatus, string>> = {
+    in_progress: 'Enviar a revisión',
+    in_review: 'Marcar completada',
+    todo: 'Iniciar',
+  }
+
+  return labels[status]
+}
+
+function TaskPanel({
+  assignableUsers = [],
+  editTaskForm,
+  editingTaskId,
+  filters,
+  onAdvanceTask,
+  onCancelEdit,
+  onDeleteTask,
+  onStartEdit,
+  onSubmitEdit,
+  projects = [],
+  setEditTaskForm,
+  setFilters,
+  tasks,
+  user,
+}: {
+  assignableUsers?: User[]
+  editTaskForm?: TaskFormState
+  editingTaskId?: number | null
+  filters?: TaskFilters
+  onAdvanceTask?: (task: Task) => void
+  onCancelEdit?: () => void
+  onDeleteTask?: (taskId: number) => void
+  onStartEdit?: (task: Task) => void
+  onSubmitEdit?: (event: FormEvent<HTMLFormElement>) => void
+  projects?: Project[]
+  setEditTaskForm?: (form: TaskFormState) => void
+  setFilters?: (filters: TaskFilters) => void
+  tasks: Task[]
+  user?: User
+}) {
+  const canEditTasks = Boolean(editTaskForm && onSubmitEdit && onStartEdit && setEditTaskForm)
+  const canDeleteTasks = user?.role === 'admin' || user?.role === 'project_manager'
   return (
     <div className="main-panel" id="tasks">
       <div className="section-header">
@@ -1165,26 +1390,128 @@ function TaskPanel({ tasks }: { tasks: Task[] }) {
         <span className="count-pill">{tasks.length}</span>
       </div>
 
+      {filters && setFilters && (
+        <div className="filters-bar" aria-label="Filtros de tareas">
+          <label>
+            Estado
+            <select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
+              <option value="">Todos</option>
+              <option value="todo">Pendiente</option>
+              <option value="in_progress">En progreso</option>
+              <option value="in_review">En revisión</option>
+              <option value="done">Completado</option>
+            </select>
+          </label>
+          <label>
+            Prioridad
+            <select value={filters.priority} onChange={(event) => setFilters({ ...filters, priority: event.target.value })}>
+              <option value="">Todas</option>
+              <option value="low">Baja</option>
+              <option value="medium">Media</option>
+              <option value="high">Alta</option>
+              <option value="critical">Crítica</option>
+            </select>
+          </label>
+          <label>
+            Asignado
+            <select value={filters.assigned_to} onChange={(event) => setFilters({ ...filters, assigned_to: event.target.value })}>
+              <option value="">Todos</option>
+              {assignableUsers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+            </select>
+          </label>
+          <label>
+            Proyecto
+            <select value={filters.project} onChange={(event) => setFilters({ ...filters, project: event.target.value })}>
+              <option value="">Todos</option>
+              {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+          </label>
+          <label>
+            Orden
+            <select value={filters.ordering} onChange={(event) => setFilters({ ...filters, ordering: event.target.value })}>
+              <option value="due_date">Vence primero</option>
+              <option value="-created_at">Más recientes</option>
+              <option value="priority">Prioridad</option>
+              <option value="status">Estado</option>
+            </select>
+          </label>
+        </div>
+      )}
+
       <div className="task-table" role="table" aria-label="Tareas">
-        <div className="table-row table-head" role="row">
+        <div className={`table-row table-head ${canEditTasks ? 'task-row-actions' : ''}`} role="row">
           <span>Tarea</span>
           <span>Responsable</span>
           <span>Estado</span>
           <span>Prioridad</span>
           <span>Vence</span>
+          {canEditTasks && <span>Acciones</span>}
         </div>
 
         {tasks.map((task) => (
-          <div className="table-row" role="row" key={task.id}>
-            <span>
-              <strong>{task.title}</strong>
-              <small>{task.project_name}</small>
-            </span>
-            <span>{task.assigned_to_name}</span>
-            <span><mark className={`status ${task.status}`}>{statusLabels[task.status]}</mark></span>
-            <span><mark className={`priority ${task.priority}`}>{priorityLabels[task.priority]}</mark></span>
-            <span>{task.due_date ?? 'Sin fecha'}</span>
-          </div>
+          editingTaskId === task.id && editTaskForm && setEditTaskForm && onSubmitEdit ? (
+            <form className="table-row task-row-actions inline-edit-form" role="row" key={task.id} onSubmit={onSubmitEdit}>
+              <span>
+                <input value={editTaskForm.title} onChange={(event) => setEditTaskForm({ ...editTaskForm, title: event.target.value })} required />
+                <textarea value={editTaskForm.description} onChange={(event) => setEditTaskForm({ ...editTaskForm, description: event.target.value })} />
+              </span>
+              <span>
+                <select value={editTaskForm.assigned_to} onChange={(event) => setEditTaskForm({ ...editTaskForm, assigned_to: event.target.value })} required>
+                  {assignableUsers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+                </select>
+              </span>
+              <span>
+                <select value={editTaskForm.status} onChange={(event) => setEditTaskForm({ ...editTaskForm, status: event.target.value as TaskStatus })}>
+                  <option value="todo">Pendiente</option>
+                  <option value="in_progress">En progreso</option>
+                  <option value="in_review">En revisión</option>
+                  <option value="done">Completado</option>
+                </select>
+              </span>
+              <span>
+                <select value={editTaskForm.priority} onChange={(event) => setEditTaskForm({ ...editTaskForm, priority: event.target.value as TaskPriority })}>
+                  <option value="low">Baja</option>
+                  <option value="medium">Media</option>
+                  <option value="high">Alta</option>
+                  <option value="critical">Crítica</option>
+                </select>
+              </span>
+              <span>
+                <input type="date" value={editTaskForm.due_date} onChange={(event) => setEditTaskForm({ ...editTaskForm, due_date: event.target.value })} />
+                <select value={editTaskForm.project} onChange={(event) => setEditTaskForm({ ...editTaskForm, project: event.target.value })} required>
+                  {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                </select>
+              </span>
+              <span className="card-actions">
+                <button className="primary-button" type="submit">Guardar</button>
+                <button className="secondary-button" type="button" onClick={onCancelEdit}>Cancelar</button>
+              </span>
+            </form>
+          ) : (
+            <div className={`table-row ${canEditTasks ? 'task-row-actions' : ''}`} role="row" key={task.id}>
+              <span>
+                <strong>{task.title}</strong>
+                <small>{task.project_name}</small>
+              </span>
+              <span>{task.assigned_to_name}</span>
+              <span><mark className={`status ${task.status}`}>{statusLabels[task.status]}</mark></span>
+              <span><mark className={`priority ${task.priority}`}>{priorityLabels[task.priority]}</mark></span>
+              <span>{task.due_date ?? 'Sin fecha'}</span>
+              {canEditTasks && (
+                <span className="card-actions">
+                  {getNextTaskLabel(task.status) && (
+                    <button className="secondary-button" type="button" onClick={() => onAdvanceTask?.(task)}>
+                      {getNextTaskLabel(task.status)}
+                    </button>
+                  )}
+                  <button className="secondary-button" type="button" onClick={() => onStartEdit?.(task)}>Editar</button>
+                  {canDeleteTasks && (
+                    <button className="danger-button" type="button" onClick={() => onDeleteTask?.(task.id)}>Eliminar</button>
+                  )}
+                </span>
+              )}
+            </div>
+          )
         ))}
 
         {tasks.length === 0 && <p className="empty-state">Aún no hay tareas registradas.</p>}
@@ -1228,6 +1555,29 @@ function UpcomingTasks({ tasks }: { tasks: Task[] }) {
         ))}
       </ul>
       {tasks.length === 0 && <p className="empty-state">No hay tareas con fecha límite.</p>}
+    </section>
+  )
+}
+
+function RecentActivity({ tasks }: { tasks: Task[] }) {
+  return (
+    <section className="panel-section">
+      <div className="section-header compact">
+        <h2>Actividad reciente</h2>
+        <span>{tasks.length}</span>
+      </div>
+      <ul className="activity-list">
+        {tasks.map((task) => (
+          <li key={task.id}>
+            <span className={`activity-dot ${task.status}`} />
+            <div>
+              <strong>{task.title}</strong>
+              <span>{task.project_name} - {statusLabels[task.status]}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {tasks.length === 0 && <p className="empty-state">Aún no hay actividad registrada.</p>}
     </section>
   )
 }

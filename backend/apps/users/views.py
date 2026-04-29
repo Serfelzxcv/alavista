@@ -1,9 +1,11 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, throttle_classes
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
+
+from apps.core.throttles import AuthRateThrottle
 
 from .models import User, UserRole
 from .permissions import IsAdminRole
@@ -19,6 +21,7 @@ from .serializers import (
 
 class LoginView(TokenObtainPairView):
     serializer_class = LoginSerializer
+    throttle_classes = [AuthRateThrottle]
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -54,6 +57,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
 @extend_schema(request=RegisterSerializer, responses={201: UserSerializer})
 @api_view(['POST'])
+@throttle_classes([AuthRateThrottle])
 def register(request):
     if not request.user.is_authenticated or request.user.role != UserRole.ADMIN:
         return Response(
