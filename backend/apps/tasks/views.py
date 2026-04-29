@@ -10,3 +10,6 @@ class TaskViewSet(viewsets.ModelViewSet):
     filterset_fields = ['status', 'priority', 'project', 'assigned_to']
     search_fields = ['title', 'description', 'project__name', 'assigned_to__name']
     ordering_fields = ['due_date', 'created_at', 'updated_at', 'priority', 'status']
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)

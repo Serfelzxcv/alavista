@@ -18,11 +18,12 @@ from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.comments.views import CommentViewSet
 from apps.projects.views import ProjectViewSet
 from apps.tasks.views import TaskViewSet
-from apps.users.views import UserViewSet
+from apps.users.views import LoginView, UserViewSet, logout, me, register
 
 router = DefaultRouter()
 router.register('users', UserViewSet, basename='users')
@@ -32,6 +33,11 @@ router.register('comments', CommentViewSet, basename='comments')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/v1/auth/login/', LoginView.as_view(), name='auth-login'),
+    path('api/v1/auth/refresh/', TokenRefreshView.as_view(), name='auth-refresh'),
+    path('api/v1/auth/register/', register, name='auth-register'),
+    path('api/v1/auth/me/', me, name='auth-me'),
+    path('api/v1/auth/logout/', logout, name='auth-logout'),
     path('api/v1/', include(router.urls)),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

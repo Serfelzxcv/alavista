@@ -10,3 +10,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
     filterset_fields = ['status', 'owner']
     search_fields = ['name', 'description', 'owner__name']
     ordering_fields = ['name', 'status', 'created_at', 'updated_at']
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
