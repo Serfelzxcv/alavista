@@ -9,6 +9,7 @@ db.sqlite3
 
 .env
 .env.local
+.env.*.local
 
 .DS_Store
 Thumbs.db
@@ -18,3 +19,7 @@ Thumbs.db
 
 staticfiles/
 media/
+
+node_modules/
+dist/
+build/
