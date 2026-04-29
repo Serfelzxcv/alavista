@@ -48,6 +48,43 @@ class RegisterSerializer(serializers.ModelSerializer):
         return User.objects.create_user(password=password, **validated_data)
 
 
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['name', 'email', 'role', 'avatar_url', 'is_active']
+
+    def validate_email(self, value):
+        email = value.lower().strip()
+        queryset = User.objects.filter(email=email)
+
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        if queryset.exists():
+            raise serializers.ValidationError('El email ya está registrado')
+
+        return email
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'name', 'email', 'role', 'avatar_url', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'role', 'created_at', 'updated_at']
+
+    def validate_email(self, value):
+        email = value.lower().strip()
+        queryset = User.objects.filter(email=email)
+
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        if queryset.exists():
+            raise serializers.ValidationError('El email ya está registrado')
+
+        return email
+
+
 class LoginSerializer(TokenObtainPairSerializer):
     username_field = User.EMAIL_FIELD
 
