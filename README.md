@@ -1,0 +1,1 @@
+Generamos el backned el entorno virtualizado y el gitignore co ne lfin de evitar cosass inecesarias al git y tambien e lrequirements para extraer las dependencias al clonarlo
