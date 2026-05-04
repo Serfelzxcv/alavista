@@ -607,6 +607,26 @@ function App() {
     }
   }
 
+  async function handleDeleteProject(projectId: number) {
+    const project = projects.find((item) => item.id === projectId)
+    const confirmed = window.confirm(
+      `¿Eliminar definitivamente ${project?.name ?? 'este proyecto'}? También se eliminarán sus tareas asociadas.`,
+    )
+
+    if (!confirmed) return
+
+    setFormMessage('')
+
+    try {
+      await apiRequest(`/projects/${projectId}/`, { method: 'DELETE' })
+      if (selectedProject?.id === projectId) setSelectedProject(null)
+      setFormMessage('Proyecto eliminado correctamente')
+      await loadWorkspace()
+    } catch (deleteError) {
+      setFormMessage(reportError(deleteError))
+    }
+  }
+
   async function handleCreateTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setFormMessage('')
@@ -877,6 +897,7 @@ function App() {
               onArchiveProject={handleArchiveProject}
               onCancelEdit={() => setEditingProjectId(null)}
               onClearSelection={() => setSelectedProject(null)}
+              onDeleteProject={handleDeleteProject}
               onSelectProject={handleSelectProject}
               onStartEdit={startEditingProject}
               onSubmitEdit={handleUpdateProject}
@@ -1193,6 +1214,7 @@ function ProjectList({
   onArchiveProject,
   onCancelEdit,
   onClearSelection,
+  onDeleteProject,
   onSelectProject,
   onStartEdit,
   onSubmitEdit,
@@ -1207,6 +1229,7 @@ function ProjectList({
   onArchiveProject: (projectId: number) => void
   onCancelEdit: () => void
   onClearSelection: () => void
+  onDeleteProject: (projectId: number) => void
   onSelectProject: (projectId: number) => void
   onStartEdit: (project: Project) => void
   onSubmitEdit: (event: FormEvent<HTMLFormElement>) => void
@@ -1299,7 +1322,10 @@ function ProjectList({
                     <button className="secondary-button" type="button" onClick={() => onStartEdit(project)}>Editar</button>
                   )}
                   {user.role === 'admin' && project.status !== 'archived' && (
-                    <button className="danger-button" type="button" onClick={() => onArchiveProject(project.id)}>Archivar</button>
+                    <button className="secondary-button" type="button" onClick={() => onArchiveProject(project.id)}>Archivar</button>
+                  )}
+                  {user.role === 'admin' && (
+                    <button className="danger-button" type="button" onClick={() => onDeleteProject(project.id)}>Eliminar</button>
                   )}
                 </div>
               </>

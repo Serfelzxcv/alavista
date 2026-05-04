@@ -34,13 +34,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         project = self.get_object()
-        project.status = ProjectStatus.ARCHIVED
-        project.save(update_fields=['status', 'updated_at'])
+        self.perform_destroy(project)
         return Response(
             {
                 'success': True,
-                'data': self.get_serializer(project).data,
-                'message': 'Proyecto archivado correctamente',
+                'data': None,
+                'message': 'Proyecto eliminado correctamente',
             },
             status=status.HTTP_200_OK,
         )
