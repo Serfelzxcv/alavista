@@ -553,6 +553,8 @@ function App() {
 
   async function handleSelectProject(projectId: number) {
     setFormMessage('')
+    const project = projects.find((item) => item.id === projectId)
+    if (project) setSelectedProject(project)
 
     try {
       const payload = await apiRequest(`/projects/${projectId}/`)
@@ -874,6 +876,7 @@ function App() {
               formMessage={formMessage}
               onArchiveProject={handleArchiveProject}
               onCancelEdit={() => setEditingProjectId(null)}
+              onClearSelection={() => setSelectedProject(null)}
               onSelectProject={handleSelectProject}
               onStartEdit={startEditingProject}
               onSubmitEdit={handleUpdateProject}
@@ -1189,6 +1192,7 @@ function ProjectList({
   formMessage,
   onArchiveProject,
   onCancelEdit,
+  onClearSelection,
   onSelectProject,
   onStartEdit,
   onSubmitEdit,
@@ -1202,6 +1206,7 @@ function ProjectList({
   formMessage: string
   onArchiveProject: (projectId: number) => void
   onCancelEdit: () => void
+  onClearSelection: () => void
   onSelectProject: (projectId: number) => void
   onStartEdit: (project: Project) => void
   onSubmitEdit: (event: FormEvent<HTMLFormElement>) => void
@@ -1216,9 +1221,49 @@ function ProjectList({
         <h2>Listado de proyectos</h2>
         <span className="count-pill">{projects.length}</span>
       </div>
+      {selectedProject && (
+        <section className="detail-panel project-detail-card">
+          <div className="section-header">
+            <div>
+              <span className="eyebrow">Detalle del proyecto</span>
+              <h2>{selectedProject.name}</h2>
+            </div>
+            <div className="card-actions">
+              <mark className={`status ${selectedProject.status === 'active' ? 'done' : 'todo'}`}>
+                {projectStatusLabels[selectedProject.status]}
+              </mark>
+              <button className="secondary-button" type="button" onClick={onClearSelection}>Cerrar</button>
+            </div>
+          </div>
+          <p>{selectedProject.description || 'Sin descripción'}</p>
+          <div className="project-detail-meta">
+            <span>Owner: <strong>{selectedProject.owner_name || 'Sin owner'}</strong></span>
+            <span>Tareas asociadas: <strong>{selectedProject.tasks?.length ?? 0}</strong></span>
+          </div>
+          <div className="task-table project-detail-table" role="table" aria-label="Tareas del proyecto">
+            <div className="table-row project-task-row table-head" role="row">
+              <span>Tarea</span>
+              <span>Responsable</span>
+              <span>Estado</span>
+              <span>Prioridad</span>
+              <span>Vence</span>
+            </div>
+            {(selectedProject.tasks ?? []).map((task) => (
+              <div className="table-row project-task-row" role="row" key={task.id}>
+                <span><strong>{task.title}</strong></span>
+                <span>{task.assigned_to_name}</span>
+                <span><mark className={`status ${task.status}`}>{statusLabels[task.status]}</mark></span>
+                <span><mark className={`priority ${task.priority}`}>{priorityLabels[task.priority]}</mark></span>
+                <span>{task.due_date ?? 'Sin fecha'}</span>
+              </div>
+            ))}
+            {(selectedProject.tasks ?? []).length === 0 && <p className="empty-state">Este proyecto aún no tiene tareas asociadas.</p>}
+          </div>
+        </section>
+      )}
       <div className="cards-list">
         {projects.map((project) => (
-          <article className="project-card" key={project.id}>
+          <article className={`project-card ${selectedProject?.id === project.id ? 'selected' : ''}`} key={project.id}>
             {editingProjectId === project.id ? (
               <form className="inline-edit-form" onSubmit={onSubmitEdit}>
                 <label>
@@ -1263,39 +1308,6 @@ function ProjectList({
         ))}
         {projects.length === 0 && <p className="empty-state">Aún no hay proyectos disponibles.</p>}
       </div>
-      {selectedProject && (
-        <section className="detail-panel">
-          <div className="section-header">
-            <div>
-              <span className="eyebrow">Detalle del proyecto</span>
-              <h2>{selectedProject.name}</h2>
-            </div>
-            <mark className={`status ${selectedProject.status === 'active' ? 'done' : 'todo'}`}>
-              {projectStatusLabels[selectedProject.status]}
-            </mark>
-          </div>
-          <p>{selectedProject.description || 'Sin descripción'}</p>
-          <div className="task-table" role="table" aria-label="Tareas del proyecto">
-            <div className="table-row table-head" role="row">
-              <span>Tarea</span>
-              <span>Responsable</span>
-              <span>Estado</span>
-              <span>Prioridad</span>
-              <span>Vence</span>
-            </div>
-            {(selectedProject.tasks ?? []).map((task) => (
-              <div className="table-row" role="row" key={task.id}>
-                <span><strong>{task.title}</strong></span>
-                <span>{task.assigned_to_name}</span>
-                <span><mark className={`status ${task.status}`}>{statusLabels[task.status]}</mark></span>
-                <span><mark className={`priority ${task.priority}`}>{priorityLabels[task.priority]}</mark></span>
-                <span>{task.due_date ?? 'Sin fecha'}</span>
-              </div>
-            ))}
-            {(selectedProject.tasks ?? []).length === 0 && <p className="empty-state">Este proyecto aún no tiene tareas asociadas.</p>}
-          </div>
-        </section>
-      )}
     </div>
   )
 }
@@ -1483,6 +1495,7 @@ function TaskPanel({
       <div className="task-table" role="table" aria-label="Tareas">
         <div className={`table-row table-head ${canEditTasks ? 'task-row-actions' : ''}`} role="row">
           <span>Tarea</span>
+          <span>Proyecto</span>
           <span>Responsable</span>
           <span>Estado</span>
           <span>Prioridad</span>
@@ -1496,6 +1509,11 @@ function TaskPanel({
               <span>
                 <input value={editTaskForm.title} onChange={(event) => setEditTaskForm({ ...editTaskForm, title: event.target.value })} required />
                 <textarea value={editTaskForm.description} onChange={(event) => setEditTaskForm({ ...editTaskForm, description: event.target.value })} />
+              </span>
+              <span>
+                <select value={editTaskForm.project} onChange={(event) => setEditTaskForm({ ...editTaskForm, project: event.target.value })} required>
+                  {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                </select>
               </span>
               <span>
                 <select value={editTaskForm.assigned_to} onChange={(event) => setEditTaskForm({ ...editTaskForm, assigned_to: event.target.value })} required>
@@ -1520,9 +1538,6 @@ function TaskPanel({
               </span>
               <span>
                 <input type="date" value={editTaskForm.due_date} onChange={(event) => setEditTaskForm({ ...editTaskForm, due_date: event.target.value })} />
-                <select value={editTaskForm.project} onChange={(event) => setEditTaskForm({ ...editTaskForm, project: event.target.value })} required>
-                  {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-                </select>
               </span>
               <span className="card-actions">
                 <button className="primary-button" type="submit">Guardar</button>
@@ -1533,8 +1548,9 @@ function TaskPanel({
             <div className={`table-row ${canEditTasks ? 'task-row-actions' : ''}`} role="row" key={task.id}>
               <span>
                 <strong>{task.title}</strong>
-                <small>{task.project_name}</small>
+                <small>#{task.id}</small>
               </span>
+              <span><mark className="project-badge">{task.project_name}</mark></span>
               <span>{task.assigned_to_name}</span>
               <span><mark className={`status ${task.status}`}>{statusLabels[task.status]}</mark></span>
               <span><mark className={`priority ${task.priority}`}>{priorityLabels[task.priority]}</mark></span>
