@@ -1,24 +1,6 @@
-# Alavista - Gestión de Proyectos y Tareas
 
-Alavista es una aplicación full-stack para la gestión de proyectos, tareas y comentarios. El frontend está construido con React, TypeScript y Vite, mientras que el backend utiliza Django REST Framework con autenticación JWT.
+ 
 
-## Características
-
-- Gestión de usuarios con autenticación JWT
-- Creación y administración de proyectos
-- Asignación y seguimiento de tareas
-- Sistema de comentarios en tareas
-- API REST documentada con Swagger/OpenAPI
-- Interfaz moderna con Tailwind CSS
-
-## Prerrequisitos
-
-Antes de comenzar, asegúrate de tener instalados las dependencias
-isntalar el entorno virtual 
-python -m venv venv   
-\venv\Scripts\activate                                                          
-                   
-pip install -r requirements.txt
 
 ## Configuración del Proyecto
 
@@ -27,38 +9,28 @@ pip install -r requirements.txt
 ```bash
 git clone https://github.com/Serfelzxcv/alavista
 cd alavista
+
+python -m venv venv   
+ .\venv\Scripts\Activate              
+                   
+pip install -r requirements.txt
 ```
 
 ### 2. Configuración de la Base de Datos
 
 1. Instala PostgreSQL en tu sistema.
-2. Crea una base de datos llamada `alavista_db` (o configura las variables de entorno según prefieras).
+2. Crea una base de datos llamada `alavista_db` 
 3. Crea un usuario con permisos (por defecto: usuario `postgres`, contraseña `root`).
 
 ### 3. Configuración del Backend
 
-1. Navega al directorio del backend:
+ Navega al directorio del backend:
 
    ```bash
    cd backend
    ```
 
-2. Crea un entorno virtual:
 
-   ```bash
-   python -m venv venv
-   ```
-
-3. Activa el entorno virtual:
-
-   - En Windows:
-     ```bash
-     venv\Scripts\activate
-     ```
-   - En macOS/Linux:
-     ```bash
-     source venv/bin/activate
-     ```
 
 4. Instala las dependencias:
 

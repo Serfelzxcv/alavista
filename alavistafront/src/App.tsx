@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { gsap } from 'gsap'
+import loginImage from './assets/login.jpg'
 import './App.css'
 
 type Role = 'admin' | 'project_manager' | 'developer'
@@ -166,8 +168,8 @@ function unwrapList<T>(payload: unknown): T[] {
 
 function App() {
   const [user, setUser] = useState<User | null>(getStoredUser)
-  const [email, setEmail] = useState('admin@taskflow.com')
-  const [password, setPassword] = useState('Admin123!')
+  const [email, setEmail] = useState('admin@example.com')
+  const [password, setPassword] = useState('admin123')
   const [authLoading, setAuthLoading] = useState(false)
   const [authError, setAuthError] = useState('')
   const [dialogError, setDialogError] = useState('')
@@ -236,9 +238,46 @@ function App() {
     role: 'developer' as Role,
   })
   const [formMessage, setFormMessage] = useState('')
+  const authPageRef = useRef<HTMLElement | null>(null)
 
   const canCreateProjects = user?.role === 'admin' || user?.role === 'project_manager'
   const canManageUsers = user?.role === 'admin'
+
+  useEffect(() => {
+    if (user || !authPageRef.current) return
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduceMotion) return
+
+    const context = gsap.context(() => {
+      gsap.from('.auth-animate', {
+        autoAlpha: 0,
+        y: 28,
+        duration: 0.85,
+        stagger: 0.1,
+        ease: 'power3.out',
+      })
+
+      gsap.from('.hero-visual', {
+        autoAlpha: 0,
+        scale: 0.82,
+        rotation: -8,
+        duration: 1.1,
+        ease: 'expo.out',
+      })
+
+      gsap.to('.hero-visual', {
+        y: -16,
+        duration: 3.4,
+        repeat: -1,
+        yoyo: true,
+        ease: 'sine.inOut',
+      })
+
+    }, authPageRef)
+
+    return () => context.revert()
+  }, [user])
 
   function saveSession(payload: AuthPayload) {
     localStorage.setItem('taskflow_access', payload.access)
@@ -700,26 +739,19 @@ function App() {
 
   if (!user) {
     return (
-      <main className="auth-page">
+      <main className="auth-page" ref={authPageRef}>
         <ErrorDialog message={dialogError} onClose={() => setDialogError('')} />
-        <section className="auth-panel">
-          <div className="brand auth-brand">
-            <span className="brand-mark">T</span>
-            <div>
-              <strong>TaskFlow Pro</strong>
-              <span>Acceso seguro</span>
-            </div>
-          </div>
-
-          <div>
+        <section className="auth-panel auth-animate">
+          <div className="auth-heading auth-animate">
             <span className="eyebrow">Gestión de proyectos</span>
-            <h1>Inicia sesión para continuar</h1>
+            <h1>Controla tu equipo desde un acceso protegido</h1>
             <p className="auth-copy">
-              Las cuentas y roles son gestionados por un Admin desde la sección Equipo.
+              Organiza proyectos, tareas y permisos con una experiencia clara para Admin,
+              Project Manager y Developer.
             </p>
           </div>
 
-          <form className="login-form" onSubmit={handleLogin}>
+          <form className="login-form auth-animate" onSubmit={handleLogin}>
             <label>
               Email
               <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
@@ -730,16 +762,26 @@ function App() {
             </label>
             {authError && <p className="form-error">{authError}</p>}
             <button type="submit" className="primary-button" disabled={authLoading}>
-              {authLoading ? 'Procesando...' : 'Entrar'}
+              {authLoading ? 'Verificando...' : 'Entrar al panel'}
             </button>
           </form>
+
+          <div className="seed-users auth-animate">
+            <span>Accesos demo</span>
+            <button type="button" onClick={() => { setEmail('admin@example.com'); setPassword('admin123') }}>Admin</button>
+            <button type="button" onClick={() => { setEmail('manager@example.com'); setPassword('manager123') }}>Manager</button>
+            <button type="button" onClick={() => { setEmail('dev1@example.com'); setPassword('dev123') }}>Developer</button>
+          </div>
         </section>
 
-        <section className="auth-preview">
-          <div className="preview-card">
-            <span className="eyebrow">Acceso protegido</span>
-            <h2>JWT, roles y permisos de negocio</h2>
-            <p>Admin gestiona usuarios, Project Manager gestiona sus proyectos y Developer trabaja sus tareas asignadas.</p>
+        <section className="auth-preview" aria-label="Vista previa de Alavista">
+          <div className="preview-card auth-animate">
+            <div className="hero-stage">
+              <div className="hero-brand">
+                <span>Alavista</span>
+              </div>
+              <img className="hero-visual" src={loginImage} alt="Cohete 3D de Alavista" />
+            </div>
           </div>
         </section>
       </main>
@@ -751,9 +793,9 @@ function App() {
       <ErrorDialog message={dialogError} onClose={() => setDialogError('')} />
       <aside className="sidebar" aria-label="Navegación principal">
         <div className="brand">
-          <span className="brand-mark">T</span>
+          <span className="brand-mark">A</span>
           <div>
-            <strong>TaskFlow Pro</strong>
+            <strong>Alavista</strong>
             <span>Workspace</span>
           </div>
         </div>
